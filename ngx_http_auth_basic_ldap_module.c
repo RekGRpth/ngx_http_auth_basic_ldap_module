@@ -72,7 +72,6 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
             if (ngx_http_complex_value(r, alcf->ldap_search_filter, &value) != NGX_OK) goto unbind;
             filter = ngx_str_t_to_char(r->pool, value);
         }
-//        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "filter=%s", filter);
         char **attrs = NULL;
         if (alcf->ldap_search_attr && alcf->ldap_search_attr->nelts) {
             attrs = ngx_pcalloc(r->pool, sizeof(char *) * (alcf->ldap_search_attr->nelts + 1));
@@ -105,7 +104,6 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                     if (h && key.data && value.data) {
                         h->key = key;
                         h->value = value;
-//                        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "key=%V, value=%V", &key, &value);
                     }
                 }
                 ldap_value_free(vals);
