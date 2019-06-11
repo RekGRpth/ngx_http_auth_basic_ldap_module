@@ -63,22 +63,17 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         if (alcf->ldap_search_attrs && alcf->ldap_search_attrs->nelts) {
             attrs = ngx_pcalloc(r->pool, sizeof(char *) * (alcf->ldap_search_attrs->nelts + 1));
             if (!attrs) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!attrs"); goto unbind; }
-            for (ngx_uint_t i = 0; i < alcf->ldap_search_attrs->nelts; i++) {
-//                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "attrs[%i]=%V", i, &((ngx_str_t *)alcf->ldap_search_attrs->elts)[i]);
-                attrs[(int)i] = (char *)((ngx_str_t *)alcf->ldap_search_attrs->elts)[i].data;
-            }
+            for (ngx_uint_t i = 0; i < alcf->ldap_search_attrs->nelts; i++) attrs[(int)i] = (char *)((ngx_str_t *)alcf->ldap_search_attrs->elts)[i].data;
         }
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, (char *)filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
         for (LDAPMessage *entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
             BerElement *ber;
             for (char *attr = ldap_first_attribute(ld, entry, &ber); attr; attr = ldap_next_attribute(ld, entry, ber)) {
-                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "attr=%s", attr);
                 char **vals = ldap_get_values(ld, entry, attr);
                 if (!vals) continue;
                 int cnt = ldap_count_values(vals);
                 for (int i = 0; i < cnt; i++) {
-                    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
                     ngx_str_t key;
                     if (cnt > 1) {
                         key.len = ngx_strlen(attr) + sizeof("LDAP-%s_%i") - 1 - 1 - 1 - 1;
