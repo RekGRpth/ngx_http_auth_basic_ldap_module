@@ -8,7 +8,7 @@ typedef struct {
     ngx_str_t realm;
     ngx_str_t ldap_url;
     ngx_str_t ldap_bind_dn;
-    ngx_str_t ldap_bind_passwd;
+//    ngx_str_t ldap_bind_passwd;
     ngx_str_t ldap_search_base;
     ngx_str_t ldap_search_attr;
 } ngx_http_auth_basic_ldap_loc_conf_t;
@@ -99,7 +99,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     ngx_conf_merge_str_value(conf->realm, prev->realm, "off");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_url, "");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_dn, "");
-    ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_passwd, "");
+//    ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_passwd, "");
     ngx_conf_merge_str_value(conf->ldap_search_base, prev->ldap_search_base, "");
     ngx_conf_merge_str_value(conf->ldap_search_attr, prev->ldap_search_attr, "uid");
     return NGX_CONF_OK;
@@ -127,12 +127,12 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_bind_dn),
     NULL },
 
-  { ngx_string("auth_basic_ldap_bind_password"),
+/*  { ngx_string("auth_basic_ldap_bind_password"),
     NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_str_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_bind_passwd),
-    NULL },
+    NULL },*/
 
   { ngx_string("auth_basic_ldap_search_base"),
     NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
