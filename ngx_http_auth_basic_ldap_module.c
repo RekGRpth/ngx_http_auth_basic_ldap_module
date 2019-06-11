@@ -79,6 +79,26 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                 int cnt = ldap_count_values(vals);
                 for (int i = 0; i < cnt; i++) {
                     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+                    ngx_str_t key;
+                    if (cnt > 1) {
+                        key.len = ngx_strlen(attr) + sizeof("LDAP-%s_%i") - 1 - 1 - 1 - 1;
+                        for (int number = i; number /= 10; key.len++);
+                        key.data = ngx_pcalloc(r->pool, key.len);
+                        if (key.data) ngx_snprintf(key.data, key.len, "LDAP-%s_%i", attr, i);
+                    } else {
+                        key.len = ngx_strlen(attr) + sizeof("LDAP-%s") - 1 - 1 - 1;
+                        key.data = ngx_pcalloc(r->pool, key.len);
+                        if (key.data) ngx_snprintf(key.data, key.len, "LDAP-%s", attr);
+                    }
+                    ngx_str_t value;
+                    value.len = ngx_strlen(vals[i]) + sizeof("%s") - 1 - 1 - 1;
+                    value.data = ngx_pcalloc(r->pool, value.len);
+                    if (value.data) ngx_snprintf(value.data, value.len, "%s", vals[i]);
+                    ngx_table_elt_t *h = ngx_list_push(&r->headers_in.headers);
+                    if (h && key.data && value.data) {
+                        h->key = key;
+                        h->value = value;
+                    }
                 }
                 ldap_value_free(vals);
             }
