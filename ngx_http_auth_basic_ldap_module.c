@@ -58,15 +58,15 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         char *attrs[] = {"memberOf", NULL};
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, (char *)filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
-        LDAPMessage *entry = ldap_first_entry(ld, msg);
-        if (!entry) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "not entry for %s", filter); goto msgfree; }
-        char **vals = ldap_get_values(ld, entry, "memberOf");
-        if (!vals) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "not memberOf for %s", filter); goto msgfree; }
-        int cnt = ldap_count_values(vals);
-        for (int i = 0; i < cnt; i++) {
-            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+        for (LDAPMessage *entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
+            char **vals = ldap_get_values(ld, entry, "memberOf");
+            if (!vals) continue;
+            int cnt = ldap_count_values(vals);
+            for (int i = 0; i < cnt; i++) {
+                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+            }
+            ldap_value_free(vals);
         }
-        ldap_value_free(vals);
         ldap_msgfree(msg);
     }
     ldap_unbind_s(ld);
