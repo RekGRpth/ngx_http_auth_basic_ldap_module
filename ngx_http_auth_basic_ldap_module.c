@@ -51,10 +51,13 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     rc = ldap_bind_s(ld, (char *)user, (char *)r->headers_in.passwd.data, LDAP_AUTH_SIMPLE);
     if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_bind_s failed: %s", ldap_err2string(rc)); goto unbind; }
     LDAPMessage *msg;
-    if (alcf->ldap_search_base.len && alcf->ldap_search_attr.len) {
+    if (alcf->ldap_search_base.len) {
         len = alcf->ldap_search_attr.len + sizeof("(%V=%V)") - 1 - 1 - 1 + r->headers_in.user.len;
-        u_char *filter = ngx_pcalloc(r->pool, len);
-        ngx_snprintf(filter, len - 1, "(%V=%V)", &alcf->ldap_search_attr, &r->headers_in.user);
+        u_char *filter = NULL;
+        if (alcf->ldap_search_attr.len) {
+            filter = ngx_pcalloc(r->pool, len);
+            ngx_snprintf(filter, len - 1, "(%V=%V)", &alcf->ldap_search_attr, &r->headers_in.user);
+        }
         char *attrs[] = {"memberOf", NULL};
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, (char *)filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
@@ -101,7 +104,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_url, "");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_dn, "");
     ngx_conf_merge_str_value(conf->ldap_search_base, prev->ldap_search_base, "");
-    ngx_conf_merge_str_value(conf->ldap_search_attr, prev->ldap_search_attr, "uid");
+    ngx_conf_merge_str_value(conf->ldap_search_attr, prev->ldap_search_attr, "");
     ngx_conf_merge_ptr_value(conf->ldap_search_attrs, prev->ldap_search_attrs, NULL);
     return NGX_CONF_OK;
 }
