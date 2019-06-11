@@ -55,13 +55,15 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         u_char *filter = NULL;
         len = sizeof("(&(uid=%V))") - 1 - 1 + r->headers_in.user.len;
         if (alcf->ldap_search_filter && alcf->ldap_search_filter->nelts) {
-            for (ngx_uint_t i = 0; i < alcf->ldap_search_filter->nelts; i++) len += sizeof("(%V)") - 1 - 1 + ((ngx_str_t *)alcf->ldap_search_filter->elts)[i].len;
+            ngx_str_t *elt = alcf->ldap_search_filter->elts;
+            for (ngx_uint_t i = 0; i < alcf->ldap_search_filter->nelts; i++) len += sizeof("(%V)") - 1 - 1 + elt[i].len;
         }
         filter = ngx_pcalloc(r->pool, len);
         if (!filter) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!filter"); goto unbind; }
         u_char *last = ngx_sprintf(filter, "(&(uid=%V)", &r->headers_in.user);
         if (alcf->ldap_search_filter && alcf->ldap_search_filter->nelts) {
-            for (ngx_uint_t i = 0; i < alcf->ldap_search_filter->nelts; i++) last = ngx_sprintf(last, "(%V)", &((ngx_str_t *)alcf->ldap_search_filter->elts)[i]);
+            ngx_str_t *elt = alcf->ldap_search_filter->elts;
+            for (ngx_uint_t i = 0; i < alcf->ldap_search_filter->nelts; i++) last = ngx_sprintf(last, "(%V)", &elt[i]);
         }
         *last = ')';
 //        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "filter=%s", filter);
@@ -69,7 +71,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         if (alcf->ldap_search_attr && alcf->ldap_search_attr->nelts) {
             attrs = ngx_pcalloc(r->pool, sizeof(char *) * (alcf->ldap_search_attr->nelts + 1));
             if (!attrs) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!attrs"); goto unbind; }
-            for (ngx_uint_t i = 0; i < alcf->ldap_search_attr->nelts; i++) attrs[i] = (char *)((ngx_str_t *)alcf->ldap_search_attr->elts)[i].data;
+            ngx_str_t *elt = alcf->ldap_search_attr->elts;
+            for (ngx_uint_t i = 0; i < alcf->ldap_search_attr->nelts; i++) attrs[i] = (char *)elt[i].data;
         }
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, (char *)filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
