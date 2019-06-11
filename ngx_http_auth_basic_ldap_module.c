@@ -52,23 +52,38 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_bind_s failed: %s", ldap_err2string(rc)); goto unbind; }
     LDAPMessage *msg;
     if (alcf->ldap_search_base.len) {
-        len = alcf->ldap_search_attr.len + sizeof("(%V=%V)") - 1 - 1 - 1 + r->headers_in.user.len;
         u_char *filter = NULL;
         if (alcf->ldap_search_attr.len) {
+            len = alcf->ldap_search_attr.len + sizeof("(%V=%V)") - 1 - 1 - 1 + r->headers_in.user.len;
             filter = ngx_pcalloc(r->pool, len);
+            if (!filter) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!filter"); goto unbind; }
             ngx_snprintf(filter, len - 1, "(%V=%V)", &alcf->ldap_search_attr, &r->headers_in.user);
         }
-        char *attrs[] = {"memberOf", NULL};
+        char **attrs = NULL;
+        if (alcf->ldap_search_attrs && alcf->ldap_search_attrs->nelts) {
+            attrs = ngx_pcalloc(r->pool, sizeof(char *) * (alcf->ldap_search_attrs->nelts + 1));
+            if (!attrs) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!attrs"); goto unbind; }
+            for (ngx_uint_t i = 0; i < alcf->ldap_search_attrs->nelts; i++) {
+                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "attrs[%i]=%V", i, &((ngx_str_t *)alcf->ldap_search_attrs->elts)[i]);
+                attrs[i] = (char *)((ngx_str_t *)alcf->ldap_search_attrs->elts)[i].data;
+            }
+        }
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "ldap_search_base=%V, filter=%s", &alcf->ldap_search_base, (char *)filter);
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, (char *)filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
         for (LDAPMessage *entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
-            char **vals = ldap_get_values(ld, entry, "memberOf");
-            if (!vals) continue;
-            int cnt = ldap_count_values(vals);
-            for (int i = 0; i < cnt; i++) {
-                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+            BerElement *ber;
+            for (char *attr = ldap_first_attribute(ld, entry, &ber); attr; attr = ldap_next_attribute(ld, entry, ber)) {
+                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "attr=%s", attr);
+                char **vals = ldap_get_values(ld, entry, attr);
+                if (!vals) continue;
+                int cnt = ldap_count_values(vals);
+                for (int i = 0; i < cnt; i++) {
+                    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+                }
+                ldap_value_free(vals);
             }
-            ldap_value_free(vals);
+            ber_free(ber, 0);
         }
         ldap_msgfree(msg);
     }
