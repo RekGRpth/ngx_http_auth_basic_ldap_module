@@ -8,9 +8,9 @@ typedef struct {
     ngx_str_t realm;
     ngx_str_t ldap_url;
     ngx_str_t ldap_bind_dn;
-//    ngx_str_t ldap_bind_passwd;
     ngx_str_t ldap_search_base;
     ngx_str_t ldap_search_attr;
+    ngx_array_t *ldap_search_attrs;
 } ngx_http_auth_basic_ldap_loc_conf_t;
 
 ngx_module_t ngx_http_auth_basic_ldap_module;
@@ -90,6 +90,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_init(ngx_conf_t *cf) {
 static void *ngx_http_auth_basic_ldap_create_loc_conf(ngx_conf_t *cf) {
     ngx_http_auth_basic_ldap_loc_conf_t *conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_auth_basic_ldap_loc_conf_t));
     if (!conf) return NULL;
+    conf->ldap_search_attrs = NGX_CONF_UNSET_PTR;
     return conf;
 }
 
@@ -99,9 +100,9 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     ngx_conf_merge_str_value(conf->realm, prev->realm, "off");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_url, "");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_dn, "");
-//    ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_passwd, "");
     ngx_conf_merge_str_value(conf->ldap_search_base, prev->ldap_search_base, "");
     ngx_conf_merge_str_value(conf->ldap_search_attr, prev->ldap_search_attr, "uid");
+    ngx_conf_merge_ptr_value(conf->ldap_search_attrs, prev->ldap_search_attrs, NULL);
     return NGX_CONF_OK;
 }
 
@@ -127,13 +128,6 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_bind_dn),
     NULL },
 
-/*  { ngx_string("auth_basic_ldap_bind_password"),
-    NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_str_slot,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_bind_passwd),
-    NULL },*/
-
   { ngx_string("auth_basic_ldap_search_base"),
     NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_str_slot,
@@ -146,6 +140,13 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     ngx_conf_set_str_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_search_attr),
+    NULL },
+
+  { ngx_string("auth_basic_ldap_search_attrs"),
+    NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    ngx_conf_set_str_array_slot,
+    NGX_HTTP_MAIN_CONF_OFFSET,
+    offsetof(ngx_http_auth_basic_ldap_loc_conf_t, ldap_search_attrs),
     NULL },
 
     ngx_null_command
