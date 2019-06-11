@@ -75,6 +75,16 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         ldap_unbind_s(ld);
         return ngx_http_auth_basic_ldap_set_realm(r, &alcf->realm);
     }
+    LDAPMessage *entry;
+    for (entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
+        char **vals = ldap_get_values(ld, entry, "memberOf");
+        if (!vals) continue;
+        for (int i = 0; i < ldap_count_values(vals); i++) {
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "vals[%i]=%s", i, vals[i]);
+        }
+        ldap_value_free(vals);
+    }
+    ldap_msgfree(entry);
     ldap_msgfree(msg);
     ldap_unbind_s(ld);
     return NGX_OK;
