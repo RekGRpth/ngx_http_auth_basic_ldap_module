@@ -52,9 +52,9 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         case NGX_DECLINED: ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "no user/password was provided for basic authentication"); goto ret;
         case NGX_ERROR: return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (!r->headers_in.passwd.len) goto ret;
+    if (!r->headers_in.passwd.len) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "no password was provided for basic authentication"); goto ret; }
     LDAP *ld;
-    int rc = ldap_initialize(&ld, (char *) alcf->ldap_url.data);
+    int rc = ldap_initialize(&ld, (char *)alcf->ldap_url.data);
     if (rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_initialize on \"%V\" failed: %s", &alcf->ldap_url, ldap_err2string(rc)); goto ret; }
     int desired_version = LDAP_VERSION3;
     rc = ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &desired_version);
@@ -69,7 +69,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         char *filter = NULL;
         if (alcf->ldap_search_filter != NULL) {
             ngx_str_t value;
-            if (ngx_http_complex_value(r, alcf->ldap_search_filter, &value) != NGX_OK) goto unbind;
+            if (ngx_http_complex_value(r, alcf->ldap_search_filter, &value) != NGX_OK) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto unbind; }
             filter = ngx_str_t_to_char(r->pool, value);
         }
         char **attrs = NULL;
@@ -81,6 +81,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         }
         rc = ldap_search_s(ld, (char *)alcf->ldap_search_base.data, LDAP_SCOPE_SUBTREE, filter, attrs, 0, &msg);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
+        rc = ldap_count_entries(ld, msg);
+        if (rc <= 0) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "ldap_count_entries == %i", rc); goto msgfree; }
         for (LDAPMessage *entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
             BerElement *ber;
             for (char *attr = ldap_first_attribute(ld, entry, &ber); attr; attr = ldap_next_attribute(ld, entry, ber)) {
