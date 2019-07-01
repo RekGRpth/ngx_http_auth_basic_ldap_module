@@ -107,7 +107,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     LDAPMessage *msg;
     if (alcf->ldap_search_base.len) {
         char *filter = NULL;
-        if (alcf->ldap_search_filter != NULL) {
+        if (alcf->ldap_search_filter) {
             ngx_str_t value;
             if (ngx_http_complex_value(r, alcf->ldap_search_filter, &value) != NGX_OK) { ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto unbind; }
             filter = ngx_str_t_to_char(r->pool, value);
@@ -186,7 +186,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_url, "");
     ngx_conf_merge_str_value(conf->ldap_url, prev->ldap_bind_dn, "");
     ngx_conf_merge_str_value(conf->ldap_search_base, prev->ldap_search_base, "");
-    if (conf->ldap_search_filter == NULL) conf->ldap_search_filter = prev->ldap_search_filter;
+    if (!conf->ldap_search_filter) conf->ldap_search_filter = prev->ldap_search_filter;
     ngx_conf_merge_ptr_value(conf->ldap_search_attr, prev->ldap_search_attr, NULL);
     return NGX_CONF_OK;
 }
