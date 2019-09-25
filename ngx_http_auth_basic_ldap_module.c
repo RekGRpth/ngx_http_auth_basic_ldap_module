@@ -5,12 +5,13 @@
 #include <ngx_http.h>
 
 typedef struct {
+    ngx_array_t *attrs;
+    ngx_http_complex_value_t *filter;
+    ngx_str_t base;
+    ngx_str_t bind;
+    ngx_str_t header;
     ngx_str_t realm;
     ngx_str_t uri;
-    ngx_str_t bind;
-    ngx_str_t base;
-    ngx_http_complex_value_t *filter;
-    ngx_array_t *attrs;
 } ngx_http_auth_basic_ldap_loc_conf_t;
 
 ngx_module_t ngx_http_auth_basic_ldap_module;
@@ -39,6 +40,12 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     .set = ngx_conf_set_str_slot,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_auth_basic_ldap_loc_conf_t, base),
+    .post = NULL },
+  { .name = ngx_string("auth_basic_ldap_header"),
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+    .set = ngx_conf_set_str_slot,
+    .conf = NGX_HTTP_LOC_CONF_OFFSET,
+    .offset = offsetof(ngx_http_auth_basic_ldap_loc_conf_t, header),
     .post = NULL },
   { .name = ngx_string("auth_basic_ldap_filter"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
@@ -129,9 +136,15 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                 int cnt = ldap_count_values(vals);
                 ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: ldap_count_values = %i", cnt);
                 ngx_str_t key;
-                key.len = ngx_strlen(attr) + sizeof("LDAP-%s") - 1 - 1 - 1;
-                if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
-                ngx_snprintf(key.data, key.len, "LDAP-%s", attr);
+                if (alcf->header.len){
+                    key.len = ngx_strlen(attr) + alcf->header.len;
+                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    ngx_snprintf(key.data, key.len, "%V%s", &alcf->header, attr);
+                } else {
+                    key.len = ngx_strlen(attr);
+                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    ngx_memcpy(key.data, attr, key.len);
+                }
                 for (int i = 0; i < cnt; i++) {
                     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %s", i, vals[i]);
                     ngx_str_t value;
@@ -181,6 +194,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     ngx_conf_merge_str_value(conf->uri, prev->uri, "");
     ngx_conf_merge_str_value(conf->bind, prev->bind, "");
     ngx_conf_merge_str_value(conf->base, prev->base, "");
+    ngx_conf_merge_str_value(conf->header, prev->header, "");
     if (!conf->filter) conf->filter = prev->filter;
     ngx_conf_merge_ptr_value(conf->attrs, prev->attrs, NULL);
     return NGX_CONF_OK;
