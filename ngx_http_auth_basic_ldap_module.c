@@ -128,19 +128,12 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                 if (!vals) continue;
                 int cnt = ldap_count_values(vals);
                 ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: ldap_count_values = %i", cnt);
+                ngx_str_t key;
+                key.len = ngx_strlen(attr) + sizeof("LDAP-%s") - 1 - 1 - 1;
+                if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                ngx_snprintf(key.data, key.len, "LDAP-%s", attr);
                 for (int i = 0; i < cnt; i++) {
                     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %s", i, vals[i]);
-                    ngx_str_t key;
-                    if (cnt > 1) {
-                        key.len = ngx_strlen(attr) + sizeof("LDAP-%s_%i") - 1 - 1 - 1 - 1;
-                        for (int number = i; number /= 10; key.len++);
-                        if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
-                        ngx_snprintf(key.data, key.len, "LDAP-%s_%i", attr, i);
-                    } else {
-                        key.len = ngx_strlen(attr) + sizeof("LDAP-%s") - 1 - 1 - 1;
-                        if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
-                        ngx_snprintf(key.data, key.len, "LDAP-%s", attr);
-                    }
                     ngx_str_t value;
                     value.len = ngx_strlen(vals[i]);
                     if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
