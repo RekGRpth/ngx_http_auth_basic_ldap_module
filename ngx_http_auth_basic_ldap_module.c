@@ -5,6 +5,14 @@
 #include <ngx_http.h>
 
 typedef struct {
+    ngx_str_t attr;
+#if (NGX_PCRE)
+    ngx_http_complex_value_t complex_value;
+    ngx_http_regex_t *http_regex;
+#endif
+} ngx_http_auth_basic_ldap_sub_t;
+
+typedef struct {
     ngx_array_t *attrs;
     ngx_http_complex_value_t *filter;
     ngx_str_t base;
@@ -15,6 +23,34 @@ typedef struct {
 } ngx_http_auth_basic_ldap_loc_conf_t;
 
 ngx_module_t ngx_http_auth_basic_ldap_module;
+
+char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+    ngx_http_auth_basic_ldap_loc_conf_t *alcf = conf;
+    if (alcf->attrs == NGX_CONF_UNSET_PTR && !(alcf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_sub_t)))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+    ngx_http_auth_basic_ldap_sub_t *attr = ngx_array_push(alcf->attrs);
+    if (!attr) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+    ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_sub_t));
+    ngx_str_t *value = cf->args->elts;
+    attr->attr = value[1];
+#if (NGX_PCRE)
+    if (cf->args->nelts <= 2) return NGX_CONF_OK;
+    u_char errstr[NGX_MAX_CONF_ERRSTR];
+    ngx_str_t err = {NGX_MAX_CONF_ERRSTR, errstr};
+    ngx_regex_compile_t rc;
+    ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
+    rc.pattern = value[2];
+    rc.options = NGX_REGEX_CASELESS;
+    rc.err = err;
+    if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+    ngx_http_compile_complex_value_t ccv;
+    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+    ccv.cf = cf;
+    ccv.value = &value[3];
+    ccv.complex_value = &attr->complex_value;
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "captcha: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
+#endif
+    return NGX_CONF_OK;
+}
 
 static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
   { .name = ngx_string("auth_basic_ldap_realm"),
@@ -54,8 +90,12 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     .offset = offsetof(ngx_http_auth_basic_ldap_loc_conf_t, filter),
     .post = NULL },
   { .name = ngx_string("auth_basic_ldap_attr"),
-    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-    .set = ngx_conf_set_str_array_slot,
+    .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1
+#if (NGX_PCRE)
+    |NGX_CONF_TAKE3
+#endif
+    ,
+    .set = ngx_http_auth_basic_ldap_attr_conf,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
     .offset = offsetof(ngx_http_auth_basic_ldap_loc_conf_t, attrs),
     .post = NULL },
@@ -115,10 +155,10 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         u_char **attrs = NULL;
         if (alcf->attrs && alcf->attrs->nelts) {
             if (!(attrs = ngx_pnalloc(r->pool, sizeof(u_char *) * (alcf->attrs->nelts + 1)))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
-            ngx_str_t *elt = alcf->attrs->elts;
+            ngx_http_auth_basic_ldap_sub_t *elt = alcf->attrs->elts;
             for (ngx_uint_t i = 0; i < alcf->attrs->nelts; i++) {
-                if (!(attrs[i] = ngx_pnalloc(r->pool, elt[i].len + 1))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
-                (void) ngx_cpystrn(attrs[i], elt[i].data, elt[i].len + 1);
+                if (!(attrs[i] = ngx_pnalloc(r->pool, elt[i].attr.len + 1))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
+                (void) ngx_cpystrn(attrs[i], elt[i].attr.data, elt[i].attr.len + 1);
             }
             attrs[alcf->attrs->nelts] = NULL;
         }
@@ -136,23 +176,37 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                 int cnt = ldap_count_values(vals);
                 ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: ldap_count_values = %i", cnt);
                 ngx_str_t key;
+                key.len = ngx_strlen(attr);
+#if (NGX_PCRE)
+                ngx_http_auth_basic_ldap_sub_t *elt = NULL;
+                if (alcf->attrs && alcf->attrs->nelts) {
+                    ngx_http_auth_basic_ldap_sub_t *elts = alcf->attrs->elts;
+                    for (ngx_uint_t i = 0; i < alcf->attrs->nelts; i++) if (elts[i].http_regex && elts[i].attr.len == key.len && !ngx_strncasecmp(elts[i].attr.data, (u_char *)attr, key.len)) { elt = &elts[i]; break; }
+                }
+#endif
                 if (alcf->header.len){
-                    key.len = ngx_strlen(attr) + alcf->header.len;
-                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    key.len += alcf->header.len;
+                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
                     ngx_snprintf(key.data, key.len, "%V%s", &alcf->header, attr);
                 } else {
-                    key.len = ngx_strlen(attr);
-                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
                     ngx_memcpy(key.data, attr, key.len);
                 }
                 for (int i = 0; i < cnt; i++) {
-                    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %s", i, vals[i]);
+                    char *val = vals[i];
+                    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %s", i, val);
                     ngx_str_t value;
-                    value.len = ngx_strlen(vals[i]);
-                    if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
-                    ngx_memcpy(value.data, vals[i], value.len);
+                    value.len = ngx_strlen(val);
+                    if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    ngx_memcpy(value.data, val, value.len);
+#if (NGX_PCRE)
+                    if (elt) {
+                        if (ngx_http_regex_exec(r, elt->http_regex, &value) != NGX_OK) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                        if (ngx_http_complex_value(r, &elt->complex_value, &value) != NGX_OK) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    }
+#endif
                     ngx_table_elt_t *h = ngx_list_push(&r->headers_in.headers);
-                    if (!h) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
+                    if (!h) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
                     h->key = key;
                     h->value = value;
                 }
