@@ -103,10 +103,10 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
 };
 
 static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r, ngx_str_t *realm) {
-    if (!(r->headers_out.www_authenticate = ngx_list_push(&r->headers_out.headers))) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (!(r->headers_out.www_authenticate = ngx_list_push(&r->headers_out.headers))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     size_t len = sizeof("Basic realm=\"\"") - 1 + realm->len;
     u_char *basic = ngx_pnalloc(r->pool, len);
-    if (!basic) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (!basic) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *p = ngx_cpymem(basic, "Basic realm=\"", sizeof("Basic realm=\"") - 1);
     p = ngx_cpymem(p, realm->data, realm->len);
     *p = '"';
