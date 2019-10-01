@@ -1,7 +1,5 @@
 #define LDAP_DEPRECATED 1
-#include <ldap.h>
-//#include <ngx_config.h>
-//3#include <ngx_core.h>
+#include <openldap.h>
 #include <ngx_http.h>
 
 typedef struct {
@@ -163,7 +161,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         u_char *base = ngx_pnalloc(r->pool, location_conf->base.len + 1);
         if (!base) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
         (void) ngx_cpystrn(base, location_conf->base.data, location_conf->base.len + 1);
-        if ((rc = ldap_search_s(ld, (const char *)base, LDAP_SCOPE_SUBTREE, (const char *)filter, (char **)attrs, 0, &msg)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_search_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
+        if ((rc = ldap_search_ext_s(ld, (const char *)base, LDAP_SCOPE_SUBTREE, (const char *)filter, (char **)attrs, 0, NULL, NULL, NULL, 0, &msg)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_search_ext_s failed: %s: %s", ldap_err2string(rc), filter); goto msgfree; }
         if ((rc = ldap_count_entries(ld, msg)) <= 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_count_entries failed: %i", rc); goto msgfree; }
         for (LDAPMessage *entry = ldap_first_entry(ld, msg); entry; entry = ldap_next_entry(ld, entry)) {
             BerElement *ber;
@@ -214,12 +212,12 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         }
         ldap_msgfree(msg);
     }
-    ldap_unbind_s(ld);
+    if ((rc = ldap_unbind_ext_s(ld, NULL, NULL)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_unbind_ext_s failed: %s", ldap_err2string(rc)); }
     return NGX_OK;
 msgfree:
     ldap_msgfree(msg);
 unbind:
-    ldap_unbind_s(ld);
+    if ((rc = ldap_unbind_ext_s(ld, NULL, NULL)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_unbind_ext_s failed: %s", ldap_err2string(rc)); }
 ret:
     return ngx_http_auth_basic_ldap_set_realm(r, &location_conf->realm);
 }
