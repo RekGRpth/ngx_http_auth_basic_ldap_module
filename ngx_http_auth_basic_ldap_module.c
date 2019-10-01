@@ -150,9 +150,11 @@ static void ngx_http_auth_basic_ldap_free_connection(ngx_http_request_t *r) {
 static ngx_int_t ngx_http_auth_basic_ldap_add_connection(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
-    int rc, fd;
+    int rc, fd, async;
     if ((rc = ldap_get_option(context->ldap, LDAP_OPT_DESC, &fd)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); return NGX_ERROR; }
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: fd = %i", fd);
+    if ((rc = ldap_get_option(context->ldap, LDAP_OPT_CONNECT_ASYNC, &async)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); return NGX_ERROR; }
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: async = %i", async);
     if (!(context->connection = ngx_get_connection(fd, r->connection->log))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: failed to get a free nginx connection"); return NGX_ERROR; }
     context->connection->log = r->connection->log;
     context->connection->log_error = r->connection->log_error;
@@ -216,6 +218,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     if ((rc = ldap_initialize(&context->ldap, (const char *)uri)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_initialize on \"%V\" failed: %s", &location_conf->uri, ldap_err2string(rc)); goto ret; }
     int desired_version = LDAP_VERSION3;
     if ((rc = ldap_set_option(context->ldap, LDAP_OPT_PROTOCOL_VERSION, &desired_version)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
+    if ((rc = ldap_set_option(context->ldap, LDAP_OPT_CONNECT_ASYNC, LDAP_OPT_ON)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
     const struct ldap_conncb ctx = {ngx_http_auth_basic_ldap_lc_add, ngx_http_auth_basic_ldap_lc_del, r};
     if ((rc = ldap_set_option(context->ldap, LDAP_OPT_CONNECT_CB, &ctx)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
     size_t len = r->headers_in.user.len + sizeof("@") - 1 + location_conf->bind.len;
