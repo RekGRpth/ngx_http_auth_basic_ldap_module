@@ -156,6 +156,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_add_connection(ngx_http_request_t *r) 
     if ((rc = ldap_get_option(context->ldap, LDAP_OPT_CONNECT_ASYNC, &async)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); return NGX_ERROR; }
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: async = %i", async);
     if (!(context->connection = ngx_get_connection(fd, r->connection->log))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: failed to get a free nginx connection"); return NGX_ERROR; }
+    if (ngx_nonblocking(fd) == -1) { ngx_log_error(NGX_LOG_ALERT, r->connection->log, ngx_socket_errno, ngx_nonblocking_n " failed"); return NGX_ERROR; }
     context->connection->log = r->connection->log;
     context->connection->log_error = r->connection->log_error;
     context->connection->number = ngx_atomic_fetch_add(ngx_connection_counter, 1);
