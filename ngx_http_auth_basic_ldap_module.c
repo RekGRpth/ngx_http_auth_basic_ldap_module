@@ -19,6 +19,10 @@ typedef struct {
     ngx_str_t uri;
 } ngx_http_auth_basic_ldap_location_conf_t;
 
+typedef struct {
+    ngx_connection_t *connection;
+}  ngx_http_auth_basic_ldap_context_t;
+
 ngx_module_t ngx_http_auth_basic_ldap_module;
 
 char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
@@ -114,6 +118,23 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r, ngx_s
     return NGX_HTTP_UNAUTHORIZED;
 }
 
+static void ngx_http_auth_basic_ldap_free_connection(ngx_connection_t *c) {
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, c->log, 0, "%s", __func__);
+    if (c->read->timer_set) ngx_del_timer(c->read);
+    if (c->write->timer_set) ngx_del_timer(c->write);
+    if (ngx_del_conn) ngx_del_conn(c, NGX_CLOSE_EVENT); else {
+        if (c->read->active || c->read->disabled) ngx_del_event(c->read, NGX_READ_EVENT, NGX_CLOSE_EVENT);
+        if (c->write->active || c->write->disabled) ngx_del_event(c->write, NGX_WRITE_EVENT, NGX_CLOSE_EVENT);
+    }
+    if (c->read->posted) { ngx_delete_posted_event(c->read); }
+    if (c->write->posted) { ngx_delete_posted_event(c->write); }
+    c->read->closed = 1;
+    c->write->closed = 1;
+    if (c->pool) ngx_destroy_pool(c->pool);
+    ngx_free_connection(c);
+    c->fd = (ngx_socket_t) -1;
+}
+
 static int ngx_http_auth_basic_ldap_lc_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr, struct ldap_conncb *ctx) {
     ngx_http_request_t *r = ctx->lc_arg;
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
@@ -121,7 +142,27 @@ static int ngx_http_auth_basic_ldap_lc_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *s
     int fd;
     int rc = ber_sockbuf_ctrl(sb, LBER_SB_OPT_GET_FD, &fd);
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: rc = %i, fd = %i", rc, fd);
+    ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
+    if (!(context->connection = ngx_get_connection(fd, r->connection->log))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: failed to get a free nginx connection"); return LDAP_OTHER; }
+    context->connection->log = r->connection->log;
+    context->connection->log_error = r->connection->log_error;
+    context->connection->number = ngx_atomic_fetch_add(ngx_connection_counter, 1);
+    context->connection->read->log = r->connection->log;
+    context->connection->write->log = r->connection->log;
+    if (ngx_event_flags & NGX_USE_RTSIG_EVENT) {
+        if (ngx_add_conn(context->connection) != NGX_OK) goto bad_add;
+    } else if (ngx_event_flags & NGX_USE_CLEAR_EVENT) {
+        if (ngx_add_event(context->connection->read, NGX_READ_EVENT, NGX_CLEAR_EVENT) != NGX_OK) goto bad_add;
+        if (ngx_add_event(context->connection->write, NGX_WRITE_EVENT, NGX_CLEAR_EVENT) != NGX_OK) goto bad_add;
+    } else if (ngx_event_flags & NGX_USE_LEVEL_EVENT) {
+        if (ngx_add_event(context->connection->read, NGX_READ_EVENT, NGX_LEVEL_EVENT) != NGX_OK) goto bad_add;
+        if (ngx_add_event(context->connection->write, NGX_WRITE_EVENT, NGX_LEVEL_EVENT) != NGX_OK) goto bad_add;
+    } else goto bad_add;
     return LDAP_SUCCESS;
+bad_add:
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: failed to add nginx connection");
+    ngx_http_auth_basic_ldap_free_connection(context->connection);
+    return LDAP_OTHER;
 }
 
 static void ngx_http_auth_basic_ldap_lc_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
@@ -131,6 +172,8 @@ static void ngx_http_auth_basic_ldap_lc_del(LDAP *ld, Sockbuf *sb, struct ldap_c
     int fd;
     int rc = ber_sockbuf_ctrl(sb, LBER_SB_OPT_GET_FD, &fd);
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: rc = %i, fd = %i", rc, fd);
+    ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
+    if (context->connection) ngx_http_auth_basic_ldap_free_connection(context->connection);
 }
 
 static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
@@ -141,6 +184,9 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         case NGX_ERROR: return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     if (!r->headers_in.passwd.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: no password was provided for basic authentication"); goto ret; }
+    ngx_http_auth_basic_ldap_context_t *context = ngx_pcalloc(r->pool, sizeof(ngx_http_auth_basic_ldap_context_t));
+    if (!context) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto ret; }
+    ngx_http_set_ctx(r, context, ngx_http_auth_basic_ldap_module);
     LDAP *ld;
     u_char *uri = ngx_pnalloc(r->pool, location_conf->uri.len + 1);
     if (!uri) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto ret; }
