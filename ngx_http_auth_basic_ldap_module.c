@@ -26,7 +26,7 @@ typedef struct {
 
 ngx_module_t ngx_http_auth_basic_ldap_module;
 
-char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = conf;
     if (location_conf->attrs == NGX_CONF_UNSET_PTR && !(location_conf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_CONF_ERROR; }
     ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location_conf->attrs);
