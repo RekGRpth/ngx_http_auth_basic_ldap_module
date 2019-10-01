@@ -114,6 +114,17 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r, ngx_s
     return NGX_HTTP_UNAUTHORIZED;
 }
 
+static int ngx_http_auth_basic_ldap_lc_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr, struct ldap_conncb *ctx) {
+    ngx_http_request_t *r = ctx->lc_arg;
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
+    return LDAP_SUCCESS;
+}
+
+static void ngx_http_auth_basic_ldap_lc_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
+    ngx_http_request_t *r = ctx->lc_arg;
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
+}
+
 static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_basic_ldap_module);
     if (location_conf->realm.len == 3 && ngx_strncmp(location_conf->realm.data, "off", 3) == 0) return NGX_DECLINED;
@@ -130,6 +141,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     if ((rc = ldap_initialize(&ld, (const char *)uri)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_initialize on \"%V\" failed: %s", &location_conf->uri, ldap_err2string(rc)); goto ret; }
     int desired_version = LDAP_VERSION3;
     if ((rc = ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &desired_version)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
+    const struct ldap_conncb ctx = {ngx_http_auth_basic_ldap_lc_add, ngx_http_auth_basic_ldap_lc_del, r};
+    if ((rc = ldap_set_option(ld, LDAP_OPT_CONNECT_CB, &ctx)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
     size_t len = r->headers_in.user.len + sizeof("@") - 1 + location_conf->bind.len;
     u_char *who = ngx_pnalloc(r->pool, len + 1);
     u_char *last = ngx_snprintf(who, len, "%V@%V", &r->headers_in.user, &location_conf->bind);
