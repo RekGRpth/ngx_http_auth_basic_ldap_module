@@ -117,6 +117,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r, ngx_s
 static int ngx_http_auth_basic_ldap_lc_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr, struct ldap_conncb *ctx) {
     ngx_http_request_t *r = ctx->lc_arg;
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
+    if (!sb) return LDAP_OTHER;
     int fd;
     int rc = ber_sockbuf_ctrl(sb, LBER_SB_OPT_GET_FD, &fd);
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: rc = %i, fd = %i", rc, fd);
@@ -126,6 +127,10 @@ static int ngx_http_auth_basic_ldap_lc_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *s
 static void ngx_http_auth_basic_ldap_lc_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
     ngx_http_request_t *r = ctx->lc_arg;
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
+    if (!sb) return;
+    int fd;
+    int rc = ber_sockbuf_ctrl(sb, LBER_SB_OPT_GET_FD, &fd);
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: rc = %i, fd = %i", rc, fd);
 }
 
 static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
