@@ -1,4 +1,3 @@
-#define LDAP_DEPRECATED 1
 #include <openldap.h>
 #include <ngx_http.h>
 
@@ -167,9 +166,9 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
             BerElement *ber;
             for (char *attr = ldap_first_attribute(ld, entry, &ber); attr; ldap_memfree(attr), attr = ldap_next_attribute(ld, entry, ber)) {
                 ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: attr = %s", attr);
-                char **vals = ldap_get_values(ld, entry, attr);
+                struct berval **vals = ldap_get_values_len(ld, entry, attr);
                 if (!vals) continue;
-                int cnt = ldap_count_values(vals);
+                int cnt = ldap_count_values_len(vals);
                 ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: ldap_count_values = %i", cnt);
                 ngx_str_t key;
                 key.len = ngx_strlen(attr);
@@ -189,12 +188,12 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                     ngx_memcpy(key.data, attr, key.len);
                 }
                 for (int i = 0; i < cnt; i++) {
-                    char *val = vals[i];
-                    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %s", i, val);
+                    struct berval *val = vals[i];
+                    ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %*.s", i, (int)val->bv_len, val->bv_val);
                     ngx_str_t value;
-                    value.len = ngx_strlen(val);
+                    value.len = val->bv_len;
                     if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
-                    ngx_memcpy(value.data, val, value.len);
+                    ngx_memcpy(value.data, val->bv_val, value.len);
 #if (NGX_PCRE)
                     if (elt) {
                         if (ngx_http_regex_exec(r, elt->http_regex, &value) != NGX_OK) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); continue; }
@@ -206,7 +205,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
                     h->key = key;
                     h->value = value;
                 }
-                ldap_value_free(vals);
+                ldap_value_free_len(vals);
             }
             ber_free(ber, 0);
         }
