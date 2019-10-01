@@ -126,8 +126,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     u_char *uri = ngx_pnalloc(r->pool, location_conf->uri.len + 1);
     if (!uri) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto ret; }
     (void) ngx_cpystrn(uri, location_conf->uri.data, location_conf->uri.len + 1);
-    int rc = ldap_initialize(&ld, (const char *)uri);
-    if (rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_initialize on \"%V\" failed: %s", &location_conf->uri, ldap_err2string(rc)); goto ret; }
+    int rc;
+    if ((rc = ldap_initialize(&ld, (const char *)uri)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_initialize on \"%V\" failed: %s", &location_conf->uri, ldap_err2string(rc)); goto ret; }
     int desired_version = LDAP_VERSION3;
     if ((rc = ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &desired_version)) != LDAP_OPT_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_set_option failed: %s", ldap_err2string(rc)); goto unbind; }
     size_t len = r->headers_in.user.len + sizeof("@") - 1 + location_conf->bind.len;
