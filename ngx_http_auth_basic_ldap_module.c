@@ -138,10 +138,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     u_char *last = ngx_snprintf(who, len, "%V@%V", &r->headers_in.user, &location_conf->bind);
     if (last != who + len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
     *last = '\0';
-    u_char *passwd = ngx_pnalloc(r->pool, r->headers_in.passwd.len + 1);
-    if (!passwd) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto unbind; }
-    (void) ngx_cpystrn(passwd, r->headers_in.passwd.data, r->headers_in.passwd.len + 1);
-    if ((rc = ldap_simple_bind_s(ld, (const char *)who, (const char *)passwd)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_simple_bind_s failed: %s", ldap_err2string(rc)); goto unbind; }
+    struct berval cred = {r->headers_in.passwd.len, (char *)r->headers_in.passwd.data};
+    if ((rc = ldap_sasl_bind_s(ld, (const char *)who, LDAP_SASL_SIMPLE, &cred, NULL, NULL, NULL)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_sasl_bind_s failed: %s", ldap_err2string(rc)); goto unbind; }
     LDAPMessage *msg;
     if (location_conf->base.len) {
         u_char *filter = NULL;
