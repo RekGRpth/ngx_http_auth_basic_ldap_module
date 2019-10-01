@@ -144,6 +144,7 @@ static void ngx_http_auth_basic_ldap_free_connection(ngx_http_request_t *r) {
     if (context->connection->pool) ngx_destroy_pool(context->connection->pool);
     ngx_free_connection(context->connection);
     context->connection->fd = (ngx_socket_t) -1;
+    context->connection = NULL;
 }
 
 static ngx_int_t ngx_http_auth_basic_ldap_add_connection(ngx_http_request_t *r) {
