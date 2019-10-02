@@ -120,11 +120,15 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r, ngx_s
 }
 
 static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ev->log, 0, "%s", __func__);
+    ngx_connection_t *c = ev->data;
+    ngx_http_request_t *r = c->data;
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
 }
 
 static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, ev->log, 0, "%s", __func__);
+    ngx_connection_t *c = ev->data;
+    ngx_http_request_t *r = c->data;
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
 }
 
 static void ngx_http_auth_basic_ldap_free_connection(ngx_http_request_t *r) {
@@ -162,6 +166,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_add_connection(ngx_http_request_t *r) 
     context->connection->number = ngx_atomic_fetch_add(ngx_connection_counter, 1);
     context->connection->read->log = r->connection->log;
     context->connection->write->log = r->connection->log;
+    context->connection->data = r;
     if (ngx_event_flags & NGX_USE_RTSIG_EVENT) {
         if (ngx_add_conn(context->connection) != NGX_OK) goto bad_add;
     } else if (ngx_event_flags & NGX_USE_CLEAR_EVENT) {
