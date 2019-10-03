@@ -102,8 +102,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r) {
     size_t len = sizeof("Basic realm=\"\"") - 1 + context->realm.len;
     u_char *basic = ngx_pnalloc(r->pool, len);
     if (!basic) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); r->headers_out.www_authenticate->hash = 0; r->headers_out.www_authenticate = NULL; return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    u_char *p = ngx_cpymem(basic, "Basic realm=\"", sizeof("Basic realm=\"") - 1);
-    p = ngx_cpymem(p, context->realm.data, context->realm.len);
+    u_char *p = ngx_copy(basic, "Basic realm=\"", sizeof("Basic realm=\"") - 1);
+    p = ngx_copy(p, context->realm.data, context->realm.len);
     *p = '"';
     r->headers_out.www_authenticate->hash = 1;
     ngx_str_set(&r->headers_out.www_authenticate->key, "WWW-Authenticate");
@@ -248,12 +248,31 @@ static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
     if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_init_fd failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_basic_ldap_module);
     ngx_str_t bind;
-    if (ngx_http_complex_value(r, location_conf->bind, &bind) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_ERROR; }
-    u_char *who = ngx_pnalloc(r->pool, bind.len + 1);
-    if (!who) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    (void) ngx_cpystrn(who, bind.data, bind.len + 1);
+    if (!location_conf->bind) bind.len = r->headers_in.user.len + sizeof("@") - 1 + ngx_strlen(context->lud->lud_dn);
+    else if (ngx_http_complex_value(r, location_conf->bind, &bind) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_ERROR; }
+    u_char *dn = ngx_pnalloc(r->pool, bind.len + 1);
+    if (!dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (location_conf->bind) (void) ngx_cpystrn(dn, bind.data, bind.len + 1); else {
+//        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: context->lud->lud_dn = %s", context->lud->lud_dn);
+        u_char *p = ngx_copy(dn, r->headers_in.user.data, r->headers_in.user.len);
+        *p++ = '@';
+        for (char *q = context->lud->lud_dn; *q; ) {
+//            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: q = %s, *q = %c", q, *q);
+            switch (q[0]) {
+                case 'D': case 'd': if (q[1]) switch (q[1]) {
+                    case 'C': case 'c': if (q[2]) switch (q[2]) {
+                        case '=': q += 3; continue;
+                    } break;
+                } break;
+                case ',': *p++ = '.'; q++; continue;
+            }
+            *p++ = *q++;
+        }
+        *p = '\0';
+//        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: dn = %s", dn);
+    }
     struct berval cred = {r->headers_in.passwd.len, (char *)r->headers_in.passwd.data};
-    if ((rc = ldap_sasl_bind(context->ldap, (const char *)who, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_sasl_bind failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
+    if ((rc = ldap_sasl_bind(context->ldap, (const char *)dn, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_sasl_bind failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
 ngx_http_core_run_phases:
     if (ngx_handle_write_event(ev, 0) != NGX_OK) context->rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     ngx_http_core_run_phases(r);
@@ -272,7 +291,7 @@ rc_NGX_ERROR:
 static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_basic_ldap_module);
-    if (!location_conf->url || !location_conf->bind) return NGX_DECLINED;
+    if (!location_conf->url) return NGX_DECLINED;
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
     if (!context) {
         context = ngx_pcalloc(r->pool, sizeof(ngx_http_auth_basic_ldap_context_t));
@@ -294,6 +313,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         ngx_memzero(&ngx_url, sizeof(ngx_url_t));
         int rc = ldap_url_parse((const char *)urlc, &context->lud);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_url_parse failed: %s", ldap_err2string(rc)); return NGX_ERROR; }
+        if (!location_conf->bind && !context->lud->lud_dn) { ldap_free_urldesc(context->lud); return NGX_DECLINED; }
         ngx_url.url.data = (u_char *) context->lud->lud_host;
         ngx_url.url.len = ngx_strlen(context->lud->lud_host);
         ngx_url.default_port = context->lud->lud_port;
