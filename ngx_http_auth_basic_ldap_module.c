@@ -147,7 +147,8 @@ static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
     if (context->rc != NGX_AGAIN) return;
     char *errmsg = NULL;
     struct timeval timeout = {0, 0};
-    if ((rc = ldap_result(context->ldap, context->msgid, 0, &timeout, &context->result)) <= 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result failed: %s", ldap_err2string(rc)); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if ((rc = ldap_result(context->ldap, context->msgid, 0, &timeout, &context->result)) < 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result failed: %s", ldap_err2string(rc)); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result = 0"); goto ngx_http_auth_basic_ldap_set_realm; }
     int errcode;
     switch ((rc = ldap_parse_result(context->ldap, context->result, &errcode, NULL, &errmsg, NULL, NULL, 0))) {
         case LDAP_SUCCESS: case LDAP_NO_RESULTS_RETURNED: break;
