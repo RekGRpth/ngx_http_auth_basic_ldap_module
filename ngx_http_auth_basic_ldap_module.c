@@ -86,8 +86,8 @@ static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
     int rc = ldap_count_entries(context->ldap, context->result);
     if (rc <= 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_count_entries failed: %i", rc); goto ngx_http_auth_basic_ldap_set_realm; }
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_basic_ldap_module);
-    ngx_str_t header;
-    if (ngx_http_complex_value(r, location_conf->header, &header) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_ERROR; }
+    ngx_str_t header = ngx_null_string;
+    if (location_conf->header && ngx_http_complex_value(r, location_conf->header, &header) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_ERROR; }
     for (LDAPMessage *entry = ldap_first_entry(context->ldap, context->result); entry; entry = ldap_next_entry(context->ldap, entry)) {
         for (attr = ldap_first_attribute(context->ldap, entry, &ber); attr; ldap_memfree(attr), attr = ldap_next_attribute(context->ldap, entry, ber)) {
             ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: attr = %s", attr);
@@ -95,15 +95,10 @@ static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
             int cnt = ldap_count_values_len(vals);
             ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: ldap_count_values = %i", cnt);
             ngx_str_t key;
-            key.len = ngx_strlen(attr);
-            if (header.len){
-                key.len += header.len;
-                if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-                if (ngx_snprintf(key.data, key.len, "%V%s", &header, attr) != key.data + key.len) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-            } else {
-                if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-                ngx_memcpy(key.data, attr, key.len);
-            }
+            key.len = ngx_strlen(attr) + header.len;
+            if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+            if (header.len) ngx_memcpy(key.data, header.data, header.len);
+            ngx_memcpy(key.data + header.len, attr, key.len - header.len);
             for (int i = 0; i < cnt; i++) {
                 struct berval *val = vals[i];
                 ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: vals[%i] = %*.s", i, (int)val->bv_len, val->bv_val);
@@ -147,30 +142,20 @@ static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
     if (context->rc != NGX_AGAIN) return;
     char *errmsg = NULL;
     struct timeval timeout = {0, 0};
+next:
     if ((rc = ldap_result(context->ldap, context->msgid, 0, &timeout, &context->result)) < 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result failed: %s", ldap_err2string(rc)); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (!rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result = 0"); goto ngx_http_auth_basic_ldap_set_realm; }
+    if (!rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result = 0"); goto next; }
     int errcode;
     switch ((rc = ldap_parse_result(context->ldap, context->result, &errcode, NULL, &errmsg, NULL, NULL, 0))) {
         case LDAP_SUCCESS: case LDAP_NO_RESULTS_RETURNED: break;
         default: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_parse_result failed:  %s", ldap_err2string(rc)); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    if (errcode != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s [%s]", ldap_err2string(errcode), errmsg ? errmsg : "-"); goto ngx_http_auth_basic_ldap_set_realm; }
     switch ((rc = ldap_msgtype(context->result))) {
-        case LDAP_RES_BIND: {
-            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_BIND");
-            if (errcode != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: bind failed: %s [%s]", ldap_err2string(errcode), errmsg ? errmsg : "-"); goto ngx_http_auth_basic_ldap_set_realm; }
-            ngx_http_auth_basic_ldap_bind(r);
-        } break;
-        case LDAP_RES_SEARCH_ENTRY: {
-            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_SEARCH_ENTRY");
-            if (errcode != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: search entry failed: %s [%s]", ldap_err2string(errcode), errmsg ? errmsg : "-"); goto ngx_http_auth_basic_ldap_set_realm; }
-            ngx_http_auth_basic_ldap_search_entry(r);
-        } break;
+        case LDAP_RES_BIND: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_BIND"); ngx_http_auth_basic_ldap_bind(r); break;
+        case LDAP_RES_SEARCH_ENTRY: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_SEARCH_ENTRY"); ngx_http_auth_basic_ldap_search_entry(r); break;
         case LDAP_RES_SEARCH_REFERENCE: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: LDAP_RES_SEARCH_REFERENCE"); goto ngx_http_auth_basic_ldap_set_realm;
-        case LDAP_RES_SEARCH_RESULT: {
-            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_SEARCH_RESULT");
-            if (errcode != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: search result failed: %s [%s]", ldap_err2string(errcode), errmsg ? errmsg : "-"); goto ngx_http_auth_basic_ldap_set_realm; }
-            goto ngx_http_auth_basic_ldap_set_realm;
-        } break;
+        case LDAP_RES_SEARCH_RESULT: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: LDAP_RES_SEARCH_RESULT"); goto ngx_http_auth_basic_ldap_set_realm;
         case LDAP_RES_MODIFY: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: LDAP_RES_MODIFY"); goto ngx_http_auth_basic_ldap_set_realm;
         case LDAP_RES_ADD: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: LDAP_RES_ADD"); goto ngx_http_auth_basic_ldap_set_realm;
         case LDAP_RES_DELETE: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ldap: LDAP_RES_DELETE"); goto ngx_http_auth_basic_ldap_set_realm;
