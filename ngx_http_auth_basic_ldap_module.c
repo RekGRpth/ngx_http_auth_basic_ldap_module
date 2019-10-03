@@ -142,9 +142,8 @@ static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
     if (context->rc != NGX_AGAIN) return;
     char *errmsg = NULL;
     struct timeval timeout = {0, 0};
-next:
     if ((rc = ldap_result(context->ldap, context->msgid, 0, &timeout, &context->result)) < 0) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result failed: %s", ldap_err2string(rc)); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (!rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result = 0"); goto next; }
+    if (!rc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_result = 0"); goto ngx_http_core_run_phases; }
     int errcode;
     switch ((rc = ldap_parse_result(context->ldap, context->result, &errcode, NULL, &errmsg, NULL, NULL, 0))) {
         case LDAP_SUCCESS: case LDAP_NO_RESULTS_RETURNED: break;
@@ -166,6 +165,7 @@ next:
         default: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: unknown ldap_msgtype %d", rc); goto ngx_http_auth_basic_ldap_set_realm;
     }
 ngx_http_core_run_phases:
+    if (ngx_handle_read_event(ev, 0) != NGX_OK) context->rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     if (errmsg) ldap_memfree(errmsg);
     ngx_http_core_run_phases(r);
     return;
@@ -195,6 +195,7 @@ static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
     struct berval cred = {r->headers_in.passwd.len, (char *)r->headers_in.passwd.data};
     if ((rc = ldap_sasl_bind(context->ldap, (const char *)who, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_sasl_bind failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
 ngx_http_core_run_phases:
+    if (ngx_handle_write_event(ev, 0) != NGX_OK) context->rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     ngx_http_core_run_phases(r);
     return;
 ngx_http_auth_basic_ldap_set_realm:
