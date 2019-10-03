@@ -330,9 +330,8 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         context->peer_connection.get = ngx_event_get_peer;
         context->peer_connection.log = r->connection->log;
         context->peer_connection.log_error = r->connection->log_error;
-        {
-            ngx_int_t rc = ngx_event_connect_peer(&context->peer_connection);
-            if (rc == NGX_ERROR || rc == NGX_BUSY || rc == NGX_DECLINED) {
+        switch (ngx_event_connect_peer(&context->peer_connection)) {
+            case NGX_ERROR: case NGX_BUSY: case NGX_DECLINED: {
                 if (context->peer_connection.connection) ngx_close_connection(context->peer_connection.connection);
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: Unable to connect to LDAP server \"%V\"", &addr->name);
                 ldap_free_urldesc(context->lud);
