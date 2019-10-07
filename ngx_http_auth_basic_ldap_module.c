@@ -347,12 +347,15 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         context->peer_connection.connection->write->log = r->connection->log;
         context->peer_connection.connection->data = r;
         context->rc = NGX_AGAIN;
+        r->main->blocked++;
     } else if (context->rc != NGX_AGAIN) {
         if (context->lud) { ldap_free_urldesc(context->lud); context->lud = NULL; }
         if (context->result) { ldap_msgfree(context->result); context->result = NULL; }
         if (context->peer_connection.connection) { ngx_close_connection(context->peer_connection.connection); context->peer_connection.connection = NULL; }
         if (context->ldap) { ldap_unbind_ext(context->ldap, NULL, NULL); context->ldap = NULL; }
+        r->main->blocked--;
     }
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s = %i", __func__, context->rc);
     return context->rc;
 }
 
