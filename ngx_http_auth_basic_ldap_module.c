@@ -297,6 +297,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         context = ngx_pcalloc(r->pool, sizeof(ngx_http_auth_basic_ldap_context_t));
         if (!context) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         ngx_str_set(&context->realm, "Authenticate");
+        ngx_http_set_ctx(r, context, ngx_http_auth_basic_ldap_module);
         if (location_conf->realm && ngx_http_complex_value(r, location_conf->realm, &context->realm) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: %s:%d", __FILE__, __LINE__); return NGX_ERROR; }
         if (context->realm.len == sizeof("off") - 1 && ngx_strncasecmp(context->realm.data, (u_char *)"off", sizeof("off") - 1) == 0) return NGX_DECLINED;
         switch (ngx_http_auth_basic_user(r)) {
@@ -346,7 +347,6 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         context->peer_connection.connection->write->log = r->connection->log;
         context->peer_connection.connection->data = r;
         context->rc = NGX_AGAIN;
-        ngx_http_set_ctx(r, context, ngx_http_auth_basic_ldap_module);
     } else if (context->rc != NGX_AGAIN) {
         if (context->lud) { ldap_free_urldesc(context->lud); context->lud = NULL; }
         if (context->result) { ldap_msgfree(context->result); context->result = NULL; }
