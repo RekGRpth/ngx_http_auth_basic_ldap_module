@@ -227,7 +227,7 @@ static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
 ngx_http_core_run_phases:
     if (ngx_handle_read_event(ev, 0) != NGX_OK) context->rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     if (errmsg) ldap_memfree(errmsg);
-    ngx_http_core_run_phases(r);
+    if (context->rc != NGX_AGAIN) { ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: Waking authentication request \"%V\"", &r->request_line); ngx_http_core_run_phases(r); }
     return;
 ngx_http_auth_basic_ldap_set_realm:
     context->rc = ngx_http_auth_basic_ldap_set_realm(r);
@@ -275,7 +275,7 @@ static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
     if ((rc = ldap_sasl_bind(context->ldap, (const char *)dn, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_sasl_bind failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
 ngx_http_core_run_phases:
     if (ngx_handle_write_event(ev, 0) != NGX_OK) context->rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    ngx_http_core_run_phases(r);
+    if (context->rc != NGX_AGAIN) { ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ldap: Waking authentication request \"%V\"", &r->request_line); ngx_http_core_run_phases(r); }
     return;
 ngx_http_auth_basic_ldap_set_realm:
     context->rc = ngx_http_auth_basic_ldap_set_realm(r);
@@ -347,13 +347,11 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         context->peer_connection.connection->write->log = r->connection->log;
         context->peer_connection.connection->data = r;
         context->rc = NGX_AGAIN;
-        r->main->blocked++;
     } else if (context->rc != NGX_AGAIN) {
         if (context->lud) { ldap_free_urldesc(context->lud); context->lud = NULL; }
         if (context->result) { ldap_msgfree(context->result); context->result = NULL; }
         if (context->peer_connection.connection) { ngx_close_connection(context->peer_connection.connection); context->peer_connection.connection = NULL; }
         if (context->ldap) { ldap_unbind_ext(context->ldap, NULL, NULL); context->ldap = NULL; }
-        r->main->blocked--;
     }
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s = %i", __func__, context->rc);
     return context->rc;
