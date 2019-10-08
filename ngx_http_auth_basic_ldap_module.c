@@ -66,7 +66,7 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
     ,
     .set = ngx_http_auth_basic_ldap_attr_conf,
     .conf = NGX_HTTP_LOC_CONF_OFFSET,
-    .offset = 0,
+    .offset = offsetof(ngx_http_auth_basic_ldap_location_conf_t, attrs),
     .post = NULL },
   { .name = ngx_string("auth_basic_ldap_bind"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
