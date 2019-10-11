@@ -31,7 +31,7 @@ ngx_module_t ngx_http_auth_basic_ldap_module;
 
 static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = conf;
-    if (!location_conf->attrs && !(location_conf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_array_create"); return NGX_CONF_ERROR; }
+    if (location_conf->attrs == NGX_CONF_UNSET_PTR && !(location_conf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_array_create"); return NGX_CONF_ERROR; }
     ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location_conf->attrs);
     if (!attr) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_array_push"); return NGX_CONF_ERROR; }
     ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_attr_t));
@@ -368,6 +368,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_postconfiguration(ngx_conf_t *cf) {
 static void *ngx_http_auth_basic_ldap_create_loc_conf(ngx_conf_t *cf) {
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_auth_basic_ldap_location_conf_t));
     if (!location_conf) return NULL;
+    location_conf->attrs = NGX_CONF_UNSET_PTR;
     return location_conf;
 }
 
@@ -378,6 +379,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     if (!conf->header) conf->header = prev->header;
     if (!conf->realm) conf->realm = prev->realm;
     if (!conf->url) conf->url = prev->url;
+    ngx_conf_merge_ptr_value(conf->attrs, prev->attrs, NGX_CONF_UNSET_PTR);
     return NGX_CONF_OK;
 }
 
