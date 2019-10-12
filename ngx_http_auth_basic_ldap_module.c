@@ -31,9 +31,9 @@ ngx_module_t ngx_http_auth_basic_ldap_module;
 
 static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_auth_basic_ldap_location_conf_t *location_conf = conf;
-    if (location_conf->attrs == NGX_CONF_UNSET_PTR && !(location_conf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_array_create"); return NGX_CONF_ERROR; }
+    if (location_conf->attrs == NGX_CONF_UNSET_PTR && !(location_conf->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) return "!ngx_array_create";
     ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location_conf->attrs);
-    if (!attr) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_array_push"); return NGX_CONF_ERROR; }
+    if (!attr) return "!ngx_array_push";
     ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_attr_t));
     ngx_str_t *value = cf->args->elts;
     attr->attr = value[1];
@@ -46,13 +46,13 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
     rc.pattern = value[2];
     rc.options = NGX_REGEX_CASELESS;
     rc.err = err;
-    if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "!ngx_http_regex_compile"); return NGX_CONF_ERROR; }
+    if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) return "!ngx_http_regex_compile";
     ngx_http_compile_complex_value_t ccv;
     ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
     ccv.cf = cf;
     ccv.value = &value[3];
     ccv.complex_value = &attr->complex_value;
-    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) { ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "ngx_http_compile_complex_value != NGX_OK"); return NGX_CONF_ERROR; }
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) return "ngx_http_compile_complex_value != NGX_OK";
 #endif
     return NGX_CONF_OK;
 }
