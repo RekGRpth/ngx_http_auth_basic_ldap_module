@@ -35,22 +35,22 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
     ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location_conf->attrs);
     if (!attr) return "!ngx_array_push";
     ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_attr_t));
-    ngx_str_t *value = cf->args->elts;
-    attr->attr = value[1];
+    ngx_str_t *elts = cf->args->elts;
+    attr->attr = elts[1];
 #if (NGX_PCRE)
     if (cf->args->nelts <= 2) return NGX_CONF_OK;
     u_char errstr[NGX_MAX_CONF_ERRSTR];
     ngx_str_t err = {NGX_MAX_CONF_ERRSTR, errstr};
     ngx_regex_compile_t rc;
     ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
-    rc.pattern = value[2];
+    rc.pattern = elts[2];
     rc.options = NGX_REGEX_CASELESS;
     rc.err = err;
     if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) return "!ngx_http_regex_compile";
     ngx_http_compile_complex_value_t ccv;
     ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
     ccv.cf = cf;
-    ccv.value = &value[3];
+    ccv.value = &elts[3];
     ccv.complex_value = &attr->complex_value;
     if (ngx_http_compile_complex_value(&ccv) != NGX_OK) return "ngx_http_compile_complex_value != NGX_OK";
 #endif
