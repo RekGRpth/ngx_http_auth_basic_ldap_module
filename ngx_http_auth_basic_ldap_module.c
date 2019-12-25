@@ -162,8 +162,11 @@ static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                 ngx_memcpy(value.data, val->bv_val, value.len);
 #if (NGX_PCRE)
                 if (elt) {
-                    if (ngx_http_regex_exec(r, elt->http_regex, &value) != NGX_OK) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ngx_http_regex_exec != NGX_OK"); continue; }
-                    if (ngx_http_complex_value(r, &elt->complex_value, &value) != NGX_OK) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+                    switch (ngx_http_regex_exec(r, elt->http_regex, &value)) {
+                        case NGX_ERROR: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_regex_exec == NGX_ERROR"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR;
+                        case NGX_DECLINED: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ngx_http_regex_exec == NGX_DECLINED"); continue;
+                    }
+                    if (ngx_http_complex_value(r, &elt->complex_value, &value) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
                 }
 #endif
                 ngx_table_elt_t *table_elt = ngx_list_push(&r->headers_in.headers);
