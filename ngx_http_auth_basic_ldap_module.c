@@ -145,7 +145,7 @@ static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
             key.len = ngx_strlen(attr) + header.len;
 #if (NGX_PCRE)
             ngx_http_auth_basic_ldap_attr_t *elt = NULL;
-            if (location_conf->attrs && location_conf->attrs->nelts) {
+            if (location_conf->attrs != NGX_CONF_UNSET_PTR && location_conf->attrs->nelts) {
                 ngx_http_auth_basic_ldap_attr_t *elts = location_conf->attrs->elts;
                 for (ngx_uint_t i = 0; i < location_conf->attrs->nelts; i++) if (elts[i].http_regex && elts[i].attr.len == key.len - header.len && !ngx_strncasecmp(elts[i].attr.data, (u_char *)attr, key.len - header.len)) { elt = &elts[i]; break; }
             }
