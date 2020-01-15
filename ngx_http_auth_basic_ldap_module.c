@@ -164,7 +164,7 @@ static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                 if (elt) {
                     switch (ngx_http_regex_exec(r, elt->http_regex, &value)) {
                         case NGX_ERROR: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_regex_exec == NGX_ERROR"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR;
-                        case NGX_DECLINED: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "ngx_http_regex_exec == NGX_DECLINED"); continue;
+                        case NGX_DECLINED: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "skip: vals[%i] = %*.s", i, (int)val->bv_len, val->bv_val); continue;
                     }
                     if (ngx_http_complex_value(r, &elt->complex_value, &value) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
                 }
