@@ -170,6 +170,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                 if (!table_elt) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "!ngx_list_push"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
                 table_elt->key = key;
                 table_elt->value = value;
+                table_elt->hash = 1;
             }
             ldap_value_free_len(vals);
         }
