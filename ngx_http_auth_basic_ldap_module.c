@@ -110,16 +110,13 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r) {
     return NGX_HTTP_UNAUTHORIZED;
 }
 
-static void ngx_http_auth_basic_ldap_bind(ngx_http_request_t *r) {
+static ngx_int_t ngx_http_auth_basic_ldap_bind(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
-    if (!context->lud->lud_dn) { context->rc = NGX_OK; return; }
+    if (!context->lud->lud_dn) return NGX_OK;
     int rc = ldap_search_ext(context->ldap, context->lud->lud_dn, context->lud->lud_scope, context->lud->lud_filter, context->lud->lud_attrs, 0, NULL, NULL, NULL, 0, &context->msgid);
-    if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_ext failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
-    return;
-ngx_http_auth_basic_ldap_set_realm:
-    context->rc = ngx_http_auth_basic_ldap_set_realm(r);
-    return;
+    if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_ext failed: %s", ldap_err2string(rc)); return ngx_http_auth_basic_ldap_set_realm(r); }
+    return NGX_OK;
 }
 
 static void ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
@@ -212,7 +209,7 @@ static void ngx_http_auth_basic_ldap_read_handler(ngx_event_t *ev) {
     }
     if (errcode != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "%s [%s]", ldap_err2string(errcode), errmsg ? errmsg : "-"); goto ngx_http_auth_basic_ldap_set_realm; }
     switch ((rc = ldap_msgtype(context->result))) {
-        case LDAP_RES_BIND: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "LDAP_RES_BIND"); ngx_http_auth_basic_ldap_bind(r); break;
+        case LDAP_RES_BIND: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "LDAP_RES_BIND"); context->rc = ngx_http_auth_basic_ldap_bind(r); break;
         case LDAP_RES_SEARCH_ENTRY: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "LDAP_RES_SEARCH_ENTRY"); ngx_http_auth_basic_ldap_search_entry(r); break;
         case LDAP_RES_SEARCH_REFERENCE: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "LDAP_RES_SEARCH_REFERENCE"); goto ngx_http_auth_basic_ldap_set_realm;
         case LDAP_RES_SEARCH_RESULT: ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "LDAP_RES_SEARCH_RESULT"); goto ngx_http_auth_basic_ldap_set_realm;
