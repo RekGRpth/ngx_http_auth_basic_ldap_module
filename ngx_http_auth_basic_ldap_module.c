@@ -31,10 +31,10 @@ ngx_module_t ngx_http_auth_basic_ldap_module;
 
 static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_auth_basic_ldap_location_t *location = conf;
-    if (location->attrs == NGX_CONF_UNSET_PTR && !(location->attrs = ngx_array_create(cf->pool, 1, sizeof(ngx_http_auth_basic_ldap_attr_t)))) return "!ngx_array_create";
-    ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location->attrs);
-    if (!attr) return "!ngx_array_push";
-    ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_attr_t));
+    ngx_http_auth_basic_ldap_attr_t *attr;
+    if (location->attrs == NGX_CONF_UNSET_PTR && !(location->attrs = ngx_array_create(cf->pool, 1, sizeof(*attr)))) return "!ngx_array_create";
+    if (!(attr = ngx_array_push(location->attrs))) return "!ngx_array_push";
+    ngx_memzero(attr, sizeof(*attr));
     ngx_str_t *elts = cf->args->elts;
     attr->attr = elts[1];
 #if (NGX_PCRE)
@@ -42,13 +42,13 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
     u_char errstr[NGX_MAX_CONF_ERRSTR];
     ngx_str_t err = {NGX_MAX_CONF_ERRSTR, errstr};
     ngx_regex_compile_t rc;
-    ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
+    ngx_memzero(&rc, sizeof(rc));
     rc.pattern = elts[2];
     rc.options = NGX_REGEX_CASELESS;
     rc.err = err;
     if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) return "!ngx_http_regex_compile";
     ngx_http_compile_complex_value_t ccv;
-    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+    ngx_memzero(&ccv, sizeof(ccv));
     ccv.cf = cf;
     ccv.value = &elts[3];
     ccv.complex_value = &attr->complex_value;
@@ -297,7 +297,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
     if (!location->url) return NGX_DECLINED;
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
     if (!context) {
-        context = ngx_pcalloc(r->pool, sizeof(ngx_http_auth_basic_ldap_context_t));
+        context = ngx_pcalloc(r->pool, sizeof(*context));
         if (!context) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pcalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         ngx_str_set(&context->realm, "Authenticate");
         ngx_http_set_ctx(r, context, ngx_http_auth_basic_ldap_module);
@@ -314,7 +314,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
         if (!urlc) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         (void) ngx_cpystrn(urlc, url.data, url.len + 1);
         ngx_url_t ngx_url;
-        ngx_memzero(&ngx_url, sizeof(ngx_url_t));
+        ngx_memzero(&ngx_url, sizeof(ngx_url));
         int rc = ldap_url_parse((const char *)urlc, &context->lud);
         if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap: ldap_url_parse failed: %s", ldap_err2string(rc)); return NGX_ERROR; }
         if (!location->bind && !context->lud->lud_dn) { ldap_free_urldesc(context->lud); return NGX_DECLINED; }
@@ -369,7 +369,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_postconfiguration(ngx_conf_t *cf) {
 }
 
 static void *ngx_http_auth_basic_ldap_create_loc_conf(ngx_conf_t *cf) {
-    ngx_http_auth_basic_ldap_location_t *location = ngx_pcalloc(cf->pool, sizeof(ngx_http_auth_basic_ldap_location_t));
+    ngx_http_auth_basic_ldap_location_t *location = ngx_pcalloc(cf->pool, sizeof(*location));
     if (!location) return NULL;
     location->attrs = NGX_CONF_UNSET_PTR;
     return location;
