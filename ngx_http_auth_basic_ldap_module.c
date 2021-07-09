@@ -251,7 +251,7 @@ static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
     u_char *dn = ngx_pnalloc(r->pool, bind.len + 1);
     if (!dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
     if (location->bind) (void) ngx_cpystrn(dn, bind.data, bind.len + 1); else {
-//        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "context->lud->lud_dn = %s", context->lud->lud_dn);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "context->lud->lud_dn = %s", context->lud->lud_dn);
         u_char *p = ngx_copy(dn, r->headers_in.user.data, r->headers_in.user.len);
         *p++ = '@';
         for (char *q = context->lud->lud_dn; *q; ) {
@@ -267,7 +267,7 @@ static void ngx_http_auth_basic_ldap_write_handler(ngx_event_t *ev) {
             *p++ = *q++;
         }
         *p = '\0';
-//        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "dn = %s", dn);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "dn = %s", dn);
     }
     struct berval cred = {r->headers_in.passwd.len, (char *)r->headers_in.passwd.data};
     if ((rc = ldap_sasl_bind(context->ldap, (const char *)dn, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_sasl_bind failed: %s", ldap_err2string(rc)); goto ngx_http_auth_basic_ldap_set_realm; }
