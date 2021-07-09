@@ -40,7 +40,7 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
 #if (NGX_PCRE)
     if (cf->args->nelts <= 2) return NGX_CONF_OK;
     u_char errstr[NGX_MAX_CONF_ERRSTR];
-    ngx_str_t err = {NGX_MAX_CONF_ERRSTR, errstr};
+    ngx_str_t err = {sizeof(errstr), errstr};
     ngx_regex_compile_t rc;
     ngx_memzero(&rc, sizeof(rc));
     rc.pattern = elts[2];
