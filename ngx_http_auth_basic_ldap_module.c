@@ -31,7 +31,7 @@ ngx_module_t ngx_http_auth_basic_ldap_module;
 
 static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_auth_basic_ldap_location_t *location = conf;
-    if (location->attrs == NGX_CONF_UNSET_PTR && !(location->attrs = ngx_array_create(cf->pool, 4, sizeof(ngx_http_auth_basic_ldap_attr_t)))) return "!ngx_array_create";
+    if (location->attrs == NGX_CONF_UNSET_PTR && !(location->attrs = ngx_array_create(cf->pool, 1, sizeof(ngx_http_auth_basic_ldap_attr_t)))) return "!ngx_array_create";
     ngx_http_auth_basic_ldap_attr_t *attr = ngx_array_push(location->attrs);
     if (!attr) return "!ngx_array_push";
     ngx_memzero(attr, sizeof(ngx_http_auth_basic_ldap_attr_t));
