@@ -23,7 +23,7 @@ typedef struct {
     LDAPMessage *result;
     LDAPURLDesc *lud;
     ngx_int_t rc;
-    ngx_peer_connection_t peer_connection;
+    ngx_peer_connection_t pc;
     ngx_str_t realm;
 } ngx_http_auth_basic_ldap_context_t;
 
@@ -323,32 +323,32 @@ static ngx_int_t ngx_http_auth_basic_ldap_handler(ngx_http_request_t *r) {
             return NGX_ERROR;
         }
         ngx_addr_t *addr = &ngx_url.addrs[ngx_random() % ngx_url.naddrs];
-        context->peer_connection.sockaddr = addr->sockaddr;
-        context->peer_connection.socklen = addr->socklen;
-        context->peer_connection.name = &addr->name;
-        context->peer_connection.get = ngx_event_get_peer;
-        context->peer_connection.log = r->connection->log;
-        context->peer_connection.log_error = r->connection->log_error;
-        switch (ngx_event_connect_peer(&context->peer_connection)) {
+        context->pc.sockaddr = addr->sockaddr;
+        context->pc.socklen = addr->socklen;
+        context->pc.name = &addr->name;
+        context->pc.get = ngx_event_get_peer;
+        context->pc.log = r->connection->log;
+        context->pc.log_error = r->connection->log_error;
+        switch (ngx_event_connect_peer(&context->pc)) {
             case NGX_ERROR: case NGX_BUSY: case NGX_DECLINED: {
-                if (context->peer_connection.connection) ngx_close_connection(context->peer_connection.connection);
+                if (context->pc.connection) ngx_close_connection(context->pc.connection);
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Unable to connect to LDAP server \"%V\"", &addr->name);
                 ldap_free_urldesc(context->lud);
                 return NGX_ERROR;
             }
         }
-        context->peer_connection.connection->log = r->connection->log;
-        context->peer_connection.connection->log_error = r->connection->log_error;
-        context->peer_connection.connection->read->handler = ngx_http_auth_basic_ldap_read_handler;
-        context->peer_connection.connection->write->handler = ngx_http_auth_basic_ldap_write_handler;
-        context->peer_connection.connection->read->log = r->connection->log;
-        context->peer_connection.connection->write->log = r->connection->log;
-        context->peer_connection.connection->data = r;
+        context->pc.connection->log = r->connection->log;
+        context->pc.connection->log_error = r->connection->log_error;
+        context->pc.connection->read->handler = ngx_http_auth_basic_ldap_read_handler;
+        context->pc.connection->write->handler = ngx_http_auth_basic_ldap_write_handler;
+        context->pc.connection->read->log = r->connection->log;
+        context->pc.connection->write->log = r->connection->log;
+        context->pc.connection->data = r;
         context->rc = NGX_AGAIN;
     } else if (context->rc != NGX_AGAIN) {
         if (context->lud) { ldap_free_urldesc(context->lud); context->lud = NULL; }
         if (context->result) { ldap_msgfree(context->result); context->result = NULL; }
-        if (context->peer_connection.connection) { ngx_close_connection(context->peer_connection.connection); context->peer_connection.connection = NULL; }
+        if (context->pc.connection) { ngx_close_connection(context->pc.connection); context->pc.connection = NULL; }
         if (context->ldap) { ldap_unbind_ext(context->ldap, NULL, NULL); context->ldap = NULL; }
     }
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s = %i", __func__, context->rc);
