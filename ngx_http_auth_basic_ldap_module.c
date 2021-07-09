@@ -97,18 +97,17 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
 
 static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
-    if (!(r->headers_out.www_authenticate = ngx_list_push(&r->headers_out.headers))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
-    size_t len = sizeof("Basic realm=\"\"") - 1 + context->realm.len;
-    u_char *basic = ngx_pnalloc(r->pool, len);
-    if (!basic) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); r->headers_out.www_authenticate->hash = 0; r->headers_out.www_authenticate = NULL; return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    u_char *p = ngx_copy(basic, "Basic realm=\"", sizeof("Basic realm=\"") - 1);
+    if (!context) return NGX_HTTP_UNAUTHORIZED;
+    ngx_str_t value = {sizeof("Basic realm=\"\"") - 1 + context->realm.len, NULL};
+    if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!(r->headers_out.www_authenticate = ngx_list_push(&r->headers_out.headers))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    u_char *p = ngx_copy(value.data, "Basic realm=\"", sizeof("Basic realm=\"") - 1);
     p = ngx_copy(p, context->realm.data, context->realm.len);
     *p = '"';
     r->headers_out.www_authenticate->hash = 1;
     ngx_str_set(&r->headers_out.www_authenticate->key, "WWW-Authenticate");
-    r->headers_out.www_authenticate->value.data = basic;
-    r->headers_out.www_authenticate->value.len = len;
+    r->headers_out.www_authenticate->value = value;
     return NGX_HTTP_UNAUTHORIZED;
 }
 
