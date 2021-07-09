@@ -98,7 +98,6 @@ static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
 static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
     ngx_http_auth_basic_ldap_context_t *context = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
-    if (!context) return NGX_HTTP_UNAUTHORIZED;
     ngx_str_t value = {sizeof("Basic realm=\"\"") - 1 + context->realm.len, NULL};
     if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     if (!(r->headers_out.www_authenticate = ngx_list_push(&r->headers_out.headers))) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_list_push"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
