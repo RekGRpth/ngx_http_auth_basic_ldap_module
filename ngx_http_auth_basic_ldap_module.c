@@ -58,41 +58,6 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
 }
 
 
-/*static void ngx_http_auth_basic_ldap_attr_debug(ngx_conf_t *cf, LDAPURLDesc *lud) {
-    if (lud->lud_next) ngx_http_auth_basic_ldap_attr_debug(cf, lud->lud_next);
-    if (lud->lud_scheme) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_scheme = %s", lud->lud_scheme);
-    if (lud->lud_host) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_host = %s", lud->lud_host);
-    if (lud->lud_port) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_port = %i", lud->lud_port);
-    if (lud->lud_dn) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_dn = %s", lud->lud_dn);
-    if (lud->lud_attrs) for (char **lud_attrs = lud->lud_attrs; *lud_attrs; lud_attrs++) {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_attrs = %s", *lud_attrs);
-    }
-    if (lud->lud_scope) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_scope = %i", lud->lud_scope);
-    if (lud->lud_filter) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_filter = %s", lud->lud_filter);
-    if (lud->lud_exts) for (char **lud_exts = lud->lud_exts; *lud_exts; lud_exts++) {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_exts = %s", *lud_exts);
-    }
-    if (lud->lud_crit_exts) ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "lud_crit_exts = %i", lud->lud_crit_exts);
-}
-
-static char *ngx_http_set_complex_value_slot_my(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-    ngx_str_t *elts = cf->args->elts;
-    ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "elts = %s", elts[1].data);
-    LDAPURLDesc *lud;
-    int rc;
-    if ((rc = ldap_url_parse((const char *)elts[1].data, &lud)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "ldap_url_parse != LDAP_SUCCESS and %s", ldap_err2string(rc)); return NGX_CONF_ERROR; }
-    ngx_http_auth_basic_ldap_attr_debug(cf, lud);
-    ngx_str_t url = {ngx_strlen(lud->lud_scheme) + ngx_strlen(lud->lud_host) + sizeof("%s://%s:%d/") - 1 - 3 + sizeof("65535") - 1 + 1, NULL};
-    if (!(url.data = ngx_pnalloc(cf->pool, url.len))) { ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "!ngx_pnalloc"); return NGX_CONF_ERROR; }
-    u_char *p = ngx_sprintf(url.data, "%s://%s:%d/", lud->lud_scheme, lud->lud_host, lud->lud_port);
-    *p = '\0';
-    url.len = p - url.data;
-    ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "url = %V", &url);
-    ngx_log_error(NGX_LOG_EMERG, cf->log, 0, "url = %s", url.data);
-    ldap_free_urldesc(lud);
-    return ngx_http_set_complex_value_slot(cf, cmd, conf);
-}*/
-
 static ngx_command_t ngx_http_auth_basic_ldap_commands[] = {
   { .name = ngx_string("auth_basic_ldap_attr"),
     .type = NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1
@@ -335,7 +300,6 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     context->connection->start_time = ngx_current_msec;
     context->connection->write->handler = ngx_http_auth_basic_ldap_write_handler;
     context->connection->write->log = r->connection->log;
-//        if (!(c->pool = ngx_create_pool(128, r->connection->log))) { ngx_log_error(NGX_LOG_ERR, pc->log, 0, "!ngx_create_pool"); ngx_close_connection(c); ldap_unbind_ext(context->ldap, NULL, NULL); return NGX_ERROR; }
     if (ngx_event_flags & NGX_USE_RTSIG_EVENT) {
         if (ngx_add_conn(context->connection) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_add_conn != NGX_OK"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
         else { ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "ngx_add_conn"); }
