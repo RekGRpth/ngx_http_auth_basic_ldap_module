@@ -280,7 +280,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     if (!dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_ERROR; }
     if (location->bind) (void) ngx_cpystrn(dn, bind.data, bind.len + 1); else {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "lud_dn = %s", context->lud->lud_dn);
-        u_char *p = ngx_copy(dn, r->headers_in.user.data, r->headers_in.user.len);
+        p = ngx_copy(dn, r->headers_in.user.data, r->headers_in.user.len);
         *p++ = '@';
         for (char *q = context->lud->lud_dn; *q; ) {
             switch (q[0]) {
