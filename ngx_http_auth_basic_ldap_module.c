@@ -290,6 +290,11 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
                         case '=': q += 3; continue;
                     } break;
                 } break;
+                case 'C': case 'c': if (q[1]) switch (q[1]) {
+                    case 'N': case 'n': if (q[2]) switch (q[2]) {
+                        case '=': q += 3; continue;
+                    } break;
+                } break;
                 case ',': *p++ = '.'; q++; continue;
             }
             *p++ = *q++;
