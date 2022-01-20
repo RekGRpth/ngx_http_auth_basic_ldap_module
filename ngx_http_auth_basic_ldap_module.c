@@ -270,6 +270,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     (void) ngx_cpystrn(urlc, url.data, url.len + 1);
     int rc;
     if ((rc = ldap_url_parse((const char *)urlc, &context->lud)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_url_parse != LDAP_SUCCESS and %s", ldap_err2string(rc)); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
+    if (!context->lud->lud_dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!lud_dn"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *p = ngx_snprintf(url.data, url.len, "%s://%s:%d/", context->lud->lud_scheme, context->lud->lud_host, context->lud->lud_port);
     *p = '\0';
     url.len = p - url.data;
