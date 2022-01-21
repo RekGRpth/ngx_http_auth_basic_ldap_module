@@ -62,6 +62,8 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
 }
 
 static char *ngx_http_set_complex_value_slot_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+    ngx_http_auth_basic_ldap_location_t *location = conf;
+    if (!location->bind) return "!bind";
     ngx_http_auth_basic_ldap_main_t *main = ngx_http_conf_get_module_main_conf(cf, ngx_http_auth_basic_ldap_module);
     main->enable = 1;
     return ngx_http_set_complex_value_slot(cf, cmd, conf);
@@ -270,38 +272,14 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     (void) ngx_cpystrn(urlc, url.data, url.len + 1);
     int rc;
     if ((rc = ldap_url_parse((const char *)urlc, &context->lud)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_url_parse != LDAP_SUCCESS and %s", ldap_err2string(rc)); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    if (!context->lud->lud_dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!lud_dn"); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     u_char *p = ngx_snprintf(url.data, url.len, "%s://%s:%d/", context->lud->lud_scheme, context->lud->lud_host, context->lud->lud_port);
     *p = '\0';
     url.len = p - url.data;
     ngx_str_t bind;
-    if (!location->bind) bind.len = r->headers_in.user.len + sizeof("@") - 1 + ngx_strlen(context->lud->lud_dn);
-    else if (ngx_http_complex_value(r, location->bind, &bind) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
+    if (ngx_http_complex_value(r, location->bind, &bind) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
     u_char *dn = ngx_pnalloc(r->pool, bind.len + 1);
     if (!dn) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_ERROR; }
-    if (location->bind) (void) ngx_cpystrn(dn, bind.data, bind.len + 1); else {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "lud_dn = %s", context->lud->lud_dn);
-        p = ngx_copy(dn, r->headers_in.user.data, r->headers_in.user.len);
-        *p++ = '@';
-        for (char *q = context->lud->lud_dn; *q; ) {
-            switch (q[0]) {
-                case 'D': case 'd': if (q[1]) switch (q[1]) {
-                    case 'C': case 'c': if (q[2]) switch (q[2]) {
-                        case '=': q += 3; continue;
-                    } break;
-                } break;
-                case 'C': case 'c': if (q[1]) switch (q[1]) {
-                    case 'N': case 'n': if (q[2]) switch (q[2]) {
-                        case '=': q += 3; continue;
-                    } break;
-                } break;
-                case ',': *p++ = '.'; q++; continue;
-            }
-            *p++ = *q++;
-        }
-        *p = '\0';
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "dn = %s", dn);
-    }
+    (void) ngx_cpystrn(dn, bind.data, bind.len + 1);
     if ((rc = ldap_initialize(&context->ldap, (const char *)url.data)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_initialize(%V) != LDAP_SUCCESS and %s", &url, ldap_err2string(rc)); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
     struct berval cred = {r->headers_in.passwd.len, (char *)r->headers_in.passwd.data};
     if ((rc = ldap_sasl_bind(context->ldap, (const char *)dn, LDAP_SASL_SIMPLE, &cred, NULL, NULL, &context->msgid)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_sasl_bind != LDAP_SUCCESS and %s", ldap_err2string(rc)); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
