@@ -1,5 +1,6 @@
-#include <ldap.h>
 #include <ngx_http.h>
+
+#include <ldap.h>
 
 typedef struct {
     ngx_str_t attr;
