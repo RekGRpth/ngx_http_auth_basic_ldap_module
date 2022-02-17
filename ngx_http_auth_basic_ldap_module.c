@@ -5,7 +5,7 @@
 typedef struct {
     ngx_str_t attr;
 #if (NGX_PCRE)
-    ngx_http_complex_value_t complex_value;
+    ngx_http_complex_value_t cv;
     ngx_http_regex_t *http_regex;
 #endif
 } ngx_http_auth_basic_ldap_attr_t;
@@ -56,7 +56,7 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
     ngx_memzero(&ccv, sizeof(ccv));
     ccv.cf = cf;
     ccv.value = &elts[3];
-    ccv.complex_value = &attr->complex_value;
+    ccv.complex_value = &attr->cv;
     if (ngx_http_compile_complex_value(&ccv) != NGX_OK) return "ngx_http_compile_complex_value != NGX_OK";
 #endif
     return NGX_CONF_OK;
@@ -176,7 +176,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                         case NGX_ERROR: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_regex_exec == NGX_ERROR"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR;
                         case NGX_DECLINED: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "skip: vals[%i] = %*.s", i, (int)val->bv_len, val->bv_val); continue;
                     }
-                    if (ngx_http_complex_value(r, &elt->complex_value, &value) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
+                    if (ngx_http_complex_value(r, &elt->cv, &value) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
                 }
 #endif
                 ngx_table_elt_t *table_elt = ngx_list_push(&r->headers_in.headers);
