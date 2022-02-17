@@ -6,7 +6,7 @@ typedef struct {
     ngx_str_t attr;
 #if (NGX_PCRE)
     ngx_http_complex_value_t cv;
-    ngx_http_regex_t *http_regex;
+    ngx_http_regex_t *regex;
 #endif
 } ngx_http_auth_basic_ldap_attr_t;
 
@@ -51,7 +51,7 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
     rc.pattern = elts[2];
     rc.options = NGX_REGEX_CASELESS;
     rc.err = err;
-    if (!(attr->http_regex = ngx_http_regex_compile(cf, &rc))) return "!ngx_http_regex_compile";
+    if (!(attr->regex = ngx_http_regex_compile(cf, &rc))) return "!ngx_http_regex_compile";
     ngx_http_compile_complex_value_t ccv;
     ngx_memzero(&ccv, sizeof(ccv));
     ccv.cf = cf;
@@ -157,7 +157,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
             ngx_http_auth_basic_ldap_attr_t *elt = NULL;
             if (location->attrs != NGX_CONF_UNSET_PTR && location->attrs->nelts) {
                 ngx_http_auth_basic_ldap_attr_t *elts = location->attrs->elts;
-                for (ngx_uint_t i = 0; i < location->attrs->nelts; i++) if (elts[i].http_regex && elts[i].attr.len == key.len - header.len && !ngx_strncasecmp(elts[i].attr.data, (u_char *)attr, key.len - header.len)) { elt = &elts[i]; break; }
+                for (ngx_uint_t i = 0; i < location->attrs->nelts; i++) if (elts[i].regex && elts[i].attr.len == key.len - header.len && !ngx_strncasecmp(elts[i].attr.data, (u_char *)attr, key.len - header.len)) { elt = &elts[i]; break; }
             }
 #endif
             if (!(key.data = ngx_pnalloc(r->pool, key.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "!ngx_pnalloc"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
@@ -172,7 +172,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                 ngx_memcpy(value.data, val->bv_val, value.len);
 #if (NGX_PCRE)
                 if (elt) {
-                    switch (ngx_http_regex_exec(r, elt->http_regex, &value)) {
+                    switch (ngx_http_regex_exec(r, elt->regex, &value)) {
                         case NGX_ERROR: ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_regex_exec == NGX_ERROR"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR;
                         case NGX_DECLINED: ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "skip: vals[%i] = %*.s", i, (int)val->bv_len, val->bv_val); continue;
                     }
