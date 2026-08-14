@@ -185,7 +185,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
             }
             ldap_value_free_len(vals);
         }
-        ber_free(ber, 0);
+        if (ber) { ber_free(ber, 0); ber = NULL; }
     }
     return rc;
 ngx_http_auth_basic_ldap_set_realm:
