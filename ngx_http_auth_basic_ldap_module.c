@@ -127,7 +127,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_set_realm(ngx_http_request_t *r) {
 static ngx_int_t ngx_http_auth_basic_ldap_bind(ngx_http_request_t *r) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "%s", __func__);
     ngx_http_auth_basic_ldap_ctx_t *ctx = ngx_http_get_module_ctx(r, ngx_http_auth_basic_ldap_module);
-    if (!ctx->lud->lud_dn) return NGX_AGAIN;
+    if (!ctx->lud->lud_dn) return NGX_OK;
     int rc = ldap_search_ext(ctx->ldap, ctx->lud->lud_dn, ctx->lud->lud_scope, ctx->lud->lud_filter, ctx->lud->lud_attrs, 0, NULL, NULL, NULL, 0, &ctx->msgid);
     if (rc != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_search_ext != LDAP_SUCCESS and %s", ldap_err2string(rc)); return ngx_http_auth_basic_ldap_set_realm(r); }
     return NGX_AGAIN;
