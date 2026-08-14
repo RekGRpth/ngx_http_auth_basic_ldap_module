@@ -266,6 +266,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     if (lcf->realm && ngx_http_complex_value(r, lcf->realm, &ctx->realm) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
     if (ctx->realm.len == sizeof("off") - 1 && ngx_strncasecmp(ctx->realm.data, (u_char *)"off", sizeof("off") - 1) == 0) return NGX_DECLINED;
     if (ngx_http_auth_basic_user(r) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_auth_basic_user != NGX_OK"); return ngx_http_auth_basic_ldap_set_realm(r); }
+    if (!r->headers_in.passwd.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "empty password"); return ngx_http_auth_basic_ldap_set_realm(r); }
     ngx_str_t url;
     if (ngx_http_complex_value(r, lcf->url, &url) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
     u_char *urlc = ngx_pnalloc(r->pool, url.len + 1);
