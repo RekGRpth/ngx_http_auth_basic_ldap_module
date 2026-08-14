@@ -161,6 +161,7 @@ static ngx_int_t ngx_http_auth_basic_ldap_search_entry(ngx_http_request_t *r) {
                 value.len = val->bv_len;
                 if (!(value.data = ngx_pnalloc(r->pool, value.len))) { ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "!ngx_pnalloc"); goto rc_NGX_HTTP_INTERNAL_SERVER_ERROR; }
                 ngx_memcpy(value.data, val->bv_val, value.len);
+                for (size_t k = 0; k < value.len; k++) if (value.data[k] == '\0' || value.data[k] == '\r' || value.data[k] == '\n') value.data[k] = ' ';
 #if (NGX_PCRE)
                 ngx_flag_t cont = 0;
                 if (lcf->attrs != NGX_CONF_UNSET_PTR && lcf->attrs->nelts) {
