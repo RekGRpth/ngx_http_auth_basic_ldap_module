@@ -278,7 +278,10 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     (void) ngx_cpystrn(urlc, url.data, url.len + 1);
     int rc;
     if ((rc = ldap_url_parse((const char *)urlc, &ctx->lud)) != LDAP_SUCCESS) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ldap_url_parse != LDAP_SUCCESS and %s", ldap_err2string(rc)); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    u_char *p = ngx_snprintf(url.data, url.len, "%s://%s:%d/", ctx->lud->lud_scheme, ctx->lud->lud_host, ctx->lud->lud_port);
+    const char *host = ctx->lud->lud_host ? ctx->lud->lud_host : "localhost";
+    url.data = ngx_pnalloc(r->pool, ngx_strlen(ctx->lud->lud_scheme) + sizeof("://") - 1 + ngx_strlen(host) + sizeof(":65535/"));
+    if (!url.data) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "!ngx_pnalloc"); return NGX_ERROR; }
+    u_char *p = ngx_sprintf(url.data, "%s://%s:%d/", ctx->lud->lud_scheme, host, ctx->lud->lud_port);
     *p = '\0';
     url.len = p - url.data;
     ngx_str_t bind;
