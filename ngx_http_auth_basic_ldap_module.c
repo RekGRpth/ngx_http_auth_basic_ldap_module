@@ -63,8 +63,6 @@ static char *ngx_http_auth_basic_ldap_attr_conf(ngx_conf_t *cf, ngx_command_t *c
 }
 
 static char *ngx_http_set_complex_value_slot_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-    ngx_http_auth_basic_ldap_loc_conf_t *lcf = conf;
-    if (!lcf->bind) return "!bind";
     ngx_http_auth_basic_ldap_main_conf_t *mcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_auth_basic_ldap_module);
     mcf->enable = 1;
     return ngx_http_set_complex_value_slot(cf, cmd, conf);
@@ -366,6 +364,7 @@ static char *ngx_http_auth_basic_ldap_merge_loc_conf(ngx_conf_t *cf, void *paren
     if (!conf->header) conf->header = prev->header;
     if (!conf->realm) conf->realm = prev->realm;
     if (!conf->url) conf->url = prev->url;
+    if (conf->url && !conf->bind) return "no \"auth_basic_ldap_bind\" is defined for \"auth_basic_ldap_url\"";
     ngx_conf_merge_ptr_value(conf->attrs, prev->attrs, NGX_CONF_UNSET_PTR);
     return NGX_CONF_OK;
 }
