@@ -263,6 +263,9 @@ static ngx_int_t ngx_http_auth_basic_ldap_context(ngx_http_request_t *r) {
     ngx_http_auth_basic_ldap_loc_conf_t *lcf = ngx_http_get_module_loc_conf(r, ngx_http_auth_basic_ldap_module);
     if (lcf->realm && ngx_http_complex_value(r, lcf->realm, &ctx->realm) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_complex_value != NGX_OK"); return NGX_ERROR; }
     if (ctx->realm.len == sizeof("off") - 1 && ngx_strncasecmp(ctx->realm.data, (u_char *)"off", sizeof("off") - 1) == 0) return NGX_DECLINED;
+    for (ngx_uint_t i = 0; i < ctx->realm.len; i++) switch (ctx->realm.data[i]) {
+        case '"': case '\r': case '\n': ctx->realm.data[i] = ' '; break;
+    }
     if (ngx_http_auth_basic_user(r) != NGX_OK) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ngx_http_auth_basic_user != NGX_OK"); return ngx_http_auth_basic_ldap_set_realm(r); }
     if (!r->headers_in.passwd.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "empty password"); return ngx_http_auth_basic_ldap_set_realm(r); }
     for (ngx_uint_t i = 0; i < r->headers_in.user.len; i++) switch (r->headers_in.user.data[i]) {
